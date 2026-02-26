@@ -1,10 +1,55 @@
-import numpy as np
-import matplotlib.pyplot as plt
+from plotting import *
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def inertia_tensor_rect(a, b, c, m):
   return m/12 * np.array([[b**2 + c**2, 0, 0],
                           [0, a**2 + c**2, 0],
                           [0, 0, a**2 + b**2]])
+
+def inertia_in_parallel_axis(J, r, m):
+  return J + m * (np.dot(r, r) * np.eye(3) - np.outer(r, r))
+
+def generate_surfaces(bodies):
+  centroids = []
+  normals = []
+  areas = []
+  for body in bodies:
+    a, b, c, m, r = body
+    # Define the vertices of the rectangular prism
+    vertices = np.array([[0, 0, 0],
+                         [a, 0, 0],
+                         [a, b, 0],
+                         [0, b, 0],
+                         [0, 0, c],
+                         [a, 0, c],
+                         [a, b, c],
+                         [0, b, c]]) - np.array([a/2, b/2, c/2]) + r
+    
+    # Define the faces of the rectangular prism
+    faces = [[0, 1, 5, 4], [1, 2, 6, 5], [2, 3, 7, 6], [3, 0, 4, 7], [0, 1, 2, 3], [4, 5, 6, 7]]
+    
+    for face in faces:
+      v1 = vertices[face[1]] - vertices[face[0]]
+      v2 = vertices[face[3]] - vertices[face[0]]
+      normal = np.cross(v1, v2)
+      area = np.linalg.norm(normal) / 2
+      normal /= np.linalg.norm(normal)
+      centroid = np.mean(vertices[face], axis=0)
+
+      if np.dot(normal, centroid - r) < 0:
+        normal = -normal
+
+      # # plot face for debugging
+      # ax.add_collection3d(Poly3DCollection([vertices[face]], facecolors='y', linewidths=1, edgecolors='r', alpha=0.5))
+      # # plot normal for debugging
+      # ax.quiver(centroid[0], centroid[1], centroid[2], normal[0] * area, normal[1] * area, normal[2] * area, color='c', label='Surface Normal')
+      # plt.axis('equal')
+      # # plt.show()
+      
+      centroids.append(centroid)
+      normals.append(normal)
+      areas.append(area)
+  return np.array(centroids), np.array(normals), np.array(areas)
 
 # satellite body
 a_body = 2.7
@@ -13,6 +58,7 @@ c_body = 0.25
 m_body = 750
 J_body = inertia_tensor_rect(a_body, b_body, c_body, m_body)
 r_body = np.array([0, 0, 0])
+body = (a_body, b_body, c_body, m_body, r_body)
 
 # solar panel
 a_panel = 12.8
@@ -22,6 +68,8 @@ m_panel = 10
 J_panel = inertia_tensor_rect(a_panel, b_panel, c_panel, m_panel)
 r_panel1 = np.array([-8.85, 0, -0.56])
 r_panel2 = np.array([8.85, 0, -0.56])
+panel1 = (a_panel, b_panel, c_panel, m_panel, r_panel1)
+panel2 = (a_panel, b_panel, c_panel, m_panel, r_panel2)
 
 # connecting beam
 a_beam = 30.5
@@ -30,48 +78,41 @@ c_beam = 0.1
 m_beam = 30
 J_beam = inertia_tensor_rect(a_beam, b_beam, c_beam, m_beam)
 r_beam = np.array([0, 0, -0.5])
+beam = (a_beam, b_beam, c_beam, m_beam, r_beam)
 
-def plot_rect_prism(com, R, a, b, c):
-  # Define the vertices of the rectangular prism
-  vertices = np.array([[-a/2, -b/2, -c/2],
-                       [a/2, -b/2, -c/2],
-                       [a/2, b/2, -c/2],
-                       [-a/2, b/2, -c/2],
-                       [-a/2, -b/2, c/2],
-                       [a/2, -b/2, c/2],
-                       [a/2, b/2, c/2],
-                       [-a/2, b/2, c/2]])
-  
-  # Rotate and translate the vertices
-  rotated_vertices = (R @ vertices.T).T + com
-  
-  # Define the edges of the rectangular prism
-  edges = [[0, 1], [1, 2], [2, 3], [3, 0],
-           [4, 5], [5, 6], [6, 7], [7, 4],
-           [0, 4], [1, 5], [2, 6], [3, 7]]
-  
-  # Plot the edges of the rectangular prism
-  for edge in edges:
-    plt.plot(rotated_vertices[edge][:, 0], rotated_vertices[edge][:, 1], rotated_vertices[edge][:, 2], 'k-')
+# total inertia tensor
+r_com = (m_body * r_body + m_panel * r_panel1 + m_panel * r_panel2 + m_beam * r_beam) / (m_body + 2 * m_panel + m_beam)
 
-def plot_axes(com, R):
-  # Rotate and translate the axes
-  rotated_axes = R + com
-  
-  # Plot the axes
-  plt.quiver(com[0], com[1], com[2], R[0, 0], R[1, 0], R[2, 0], color='r', label='X-axis')
-  plt.quiver(com[0], com[1], com[2], R[0, 1], R[1, 1], R[2, 1], color='g', label='Y-axis')
-  plt.quiver(com[0], com[1], com[2], R[0, 2], R[1, 2], R[2, 2], color='b', label='Z-axis')
+r_body_com = r_body - r_com
+r_panel1_com = r_panel1 - r_com
+r_panel2_com = r_panel2 - r_com
+r_beam_com = r_beam - r_com
+J_total = inertia_in_parallel_axis(J_body, r_body_com, m_body) + \
+          inertia_in_parallel_axis(J_panel, r_panel1_com, m_panel) + \
+          inertia_in_parallel_axis(J_panel, r_panel2_com, m_panel) + \
+          inertia_in_parallel_axis(J_beam, r_beam_com, m_beam)
 
+# surfaces 
+bodies = [body, panel1, panel2, beam]
+centroids, normals, areas = generate_surfaces(bodies)
+
+# plotting
+# plt.ion()
 ax = plt.figure().add_subplot(111, projection='3d')
 plot_rect_prism(r_body, np.eye(3), a_body, b_body, c_body)
 plot_rect_prism(r_panel1, np.eye(3), a_panel, b_panel, c_panel)
 plot_rect_prism(r_panel2, np.eye(3), a_panel, b_panel, c_panel)
 plot_rect_prism(r_beam, np.eye(3), a_beam, b_beam, c_beam)
+plot_axes(r_com, np.eye(3))
 plot_axes(r_body, np.eye(3))
+plot_inertia_tensor(J_total, r_com, np.eye(3))
+plot_surface_normals(centroids, normals, areas)
+
+
 ax.set_xlabel('X')
 ax.set_ylabel('Y')
 ax.set_zlabel('Z')
 plt.axis('equal')
 ax.set_title('Satellite Components')
+# ax.legend()
 plt.show()

@@ -61,7 +61,7 @@ and the following actuators:
 0.1 degree pointing accuracy (totally made up), 6 deg/sec slew rate (possibly made up by google AI)
 
 \section{Spacecraft Model}
-For a uniform rectangular prism, the inertia tensor in the principle axes is defined as:
+For a uniform rectangular prism, the inertia tensor about its principle axes is defined as:
 \begin{equation*}
   \mathcal{J} = \frac{m}{12}\begin{bmatrix}
     b^2+c^2 & 0 & 0 \\
@@ -69,6 +69,13 @@ For a uniform rectangular prism, the inertia tensor in the principle axes is def
     0 & 0 & b^2 + c^2
   \end{bmatrix}
 \end{equation*}
+
+We can determine the satellite's total inertia tensor by modeling the body, solar panels, and beam as separate rectangular prisms, calculating their individual inertia tensors, and then applying the parallel axis theorem to shift them to a common center of mass before summing them together:
+\begin{align*}
+  \mathcal{J}_{total}^C &= \sum_i \mathcal{J}_i^C \\
+  \mathcal{J}_i^C &= \mathcal{J}_i^B + m_i \left( r_i^\top r_i I - r_i r_i^\top \right)
+\end{align*}
+The satellite's center of mass can be calculated as the weighted average of the centers of mass of each component.
 
 \section{Dynamics}
 
