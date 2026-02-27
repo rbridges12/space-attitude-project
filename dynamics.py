@@ -96,8 +96,51 @@ J_total = inertia_in_parallel_axis(J_body, r_body_com, m_body) + \
 bodies = [body, panel1, panel2, beam]
 centroids, normals, areas = generate_surfaces(bodies)
 
+# orbit parameters
+mu = 398600.4418  # Earth's gravitational parameter, km^3/s^2
+R_earth = 6371  # Earth's radius, km
+altitude = 559  # Altitude of the satellite, km
+a_orbit = R_earth + altitude  # Semi-major axis, km
+inclination = 43  # degrees
+v = np.sqrt(mu / a_orbit)  # Orbital velocity for circular orbit
+p0 = np.array([a_orbit, 0, 0])  # Initial position in ECI frame
+v0 = np.array([0, v, 0])  # Initial velocity in ECI frame
+def R_x(theta):
+  c, s = np.cos(theta), np.sin(theta)
+  return np.array([[1, 0, 0],
+                   [0, c, -s],
+                   [0, s, c]])
+
+v0 = R_x(np.radians(inclination)) @ v0  # Rotate velocity vector to achieve desired inclination
+
+def satellite_dynamics(t, x):
+  p = x[0:3]
+  v = x[3:6]
+  r = np.linalg.norm(p)
+  
+  # Gravitational acceleration
+  a = -mu * p / r**3
+  return np.concatenate((v, a))
+
+def rk4_step(func, t, x, dt):
+  k1 = func(t, x)
+  k2 = func(t + dt/2, x + dt/2 * k1)
+  k3 = func(t + dt/2, x + dt/2 * k2)
+  k4 = func(t + dt, x + dt * k3)
+  return x + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
+
+N = 1000
+xs = np.zeros((N, 6))
+xs[0] = np.concatenate((p0, v0))
+dt = 10  # time step of 10 seconds
+ts = np.arange(0, N*dt, dt)
+for i, t in enumerate(ts[1:], 1):
+  xs[i] = rk4_step(satellite_dynamics, t, xs[i-1], 10)
+
+# animate_orbit(xs, ts, R_earth)
+animate_orbit_with_velocity(xs, ts, R_earth, history_len=600, vel_scale=100, interval=10)
+
 # plotting
-# plt.ion()
 ax = plt.figure().add_subplot(111, projection='3d')
 plot_rect_prism(r_body, np.eye(3), a_body, b_body, c_body)
 plot_rect_prism(r_panel1, np.eye(3), a_panel, b_panel, c_panel)
