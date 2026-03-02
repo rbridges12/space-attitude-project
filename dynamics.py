@@ -128,17 +128,34 @@ def hat(x):
                    [x[2], 0, -x[0]],
                    [-x[1], x[0], 0]])
 
-def attitude_dynamics(t, x):
-  q = x[0:4]  # Quaternion
-  w = x[4:7]  # Angular velocity
+def L(q):
   temp = q[0] * np.eye(3) + hat(q[1:4])
   L = np.zeros((4, 4));
   L[0, :] = [q[0], -q[1], -q[2], -q[3]]
   L[1:,0] = q[1:4]
   L[1:,1:] = temp
+  return L
+
+def R(q):
+  temp = q[0] * np.eye(3) - hat(q[1:4])
+  R = np.zeros((4, 4));
+  R[0, :] = [q[0], -q[1], -q[2], -q[3]]
+  R[1:,0] = q[1:4]
+  R[1:,1:] = temp
+  return R
+
+# recover rotation matrix from quaternion
+def Q(q):
   H = np.zeros((4,3))
   H[1:, :] = np.eye(3)
-  qdot = 0.5 * L @ H @ w
+  return H.T @ L(q) @ R(q).T @ H
+
+def attitude_dynamics(t, x):
+  q = x[0:4]  # Quaternion
+  w = x[4:7]  # Angular velocity
+  H = np.zeros((4,3))
+  H[1:, :] = np.eye(3)
+  qdot = 0.5 * L(q) @ H @ w
   tau = 0
   wdot = np.linalg.inv(J_total) @ (tau - hat(w) @ J_total @ w)
   return np.concatenate((qdot, wdot))
@@ -159,16 +176,100 @@ def simulate_attitude():
   N = 1000
   xs = np.zeros((N, 7))
   q0 = np.array([1, 0, 0, 0])  # initial quaternion (no rotation)
-  rpm = 10
-  w0 = 2*np.pi*rpm/60 * np.array([0, 0, 1]) + np.random.normal(0, 0.05, 3)  # initial angular velocity with some noise
-  print("Initial Angular Velocity (rad/s):", w0)
-  xs[0] = np.concatenate((q0, w0))
-  dt = 0.05
-  ts = np.arange(0, N*dt, dt)
-  for i, t in enumerate(ts[1:], 1):
-    xs[i] = rk4_step_attitude(attitude_dynamics, t, xs[i-1], dt)
+  w_mag = 2*np.pi*10/60  # 10 RPM in rad/s
+  # example initial vels
+  w1 = np.array([1, 0.1, 0])
+  w1 = w_mag * w1 / np.linalg.norm(w1)
+  w2 = np.array([0.02, 1, 0])
+  w2 = w_mag * w2 / np.linalg.norm(w2)
+  w3 = np.array([0.1, 0.1, 1])
+  w3 = w_mag * w3 / np.linalg.norm(w3)
+  w0 = np.array([0, 0, 1]) + np.random.normal(0, 0.1, 3)  # initial angular velocity with some noise
+  w0 = w_mag * w0 / np.linalg.norm(w0) 
+  xs1 = np.zeros((N, 7))
+  xs2 = np.zeros((N, 7))
+  xs3 = np.zeros((N, 7))
+  xs_ex = [xs, xs1, xs2, xs3]
+  for i, w in enumerate([w0, w1, w2, w3]):
+    print("Initial Angular Velocity (rad/s):", w)
+    xs_ex[i][0] = np.concatenate((q0, w))
+    dt = 0.05
+    ts = np.arange(0, N*dt, dt)
+    for j, t in enumerate(ts[1:], 1):
+      xs_ex[i][j] = rk4_step_attitude(attitude_dynamics, t, xs_ex[i][j-1], dt)
   
-  animate_attitude_body(ts, xs, bodies, r_com, interval=10)
+  # animate_attitude_body(ts, xs_ex[0], bodies, r_com, interval=10)
+
+  hs1 = np.zeros((N, 3))
+  hs2 = np.zeros((N, 3))
+  hs3 = np.zeros((N, 3))
+  hsb1 = np.zeros((N, 3))
+  hsb2 = np.zeros((N, 3))
+  hsb3 = np.zeros((N, 3))
+  Ts = np.zeros(N)
+  for i in range(N):
+    # qi = xs_ex[0][i, 0:4]
+    # wi = xs_ex[0][i, 4:7]
+    qi = xs_ex[1][i, 0:4]
+    wi = xs_ex[1][i, 4:7]
+    hs1[i] = Q(qi) @ J_total @ wi
+    hsb1[i] = J_total @ wi
+    hsb1[i] = hsb1[i] / np.linalg.norm(hsb1[i])  # normalize for plotting
+    qi = xs_ex[2][i, 0:4]
+    wi = xs_ex[2][i, 4:7]
+    hs2[i] = Q(qi) @ J_total @ wi
+    hsb2[i] = J_total @ wi
+    hsb2[i] = hsb2[i] / np.linalg.norm(hsb2[i])  # normalize for plotting
+    qi = xs_ex[3][i, 0:4]
+    wi = xs_ex[3][i, 4:7]
+    hs3[i] = Q(qi) @ J_total @ wi
+    hsb3[i] = J_total @ wi
+    hsb3[i] = hsb3[i] / np.linalg.norm(hsb3[i])  # normalize for plotting
+    Ts[i] = 0.5 * wi.T @ J_total @ wi
+  
+  # plot angular momentum over time, each axis on its own subplot
+  # fig, axs = plt.subplots(3, 1, figsize=(10, 8))
+  # axs[0].plot(ts, hs1[:, 0], label='H_x')
+  # axs[1].plot(ts, hs1[:, 1], label='H_y')
+  # axs[2].plot(ts, hs1[:, 2], label='H_z')
+  # axs[0].set_ylabel('H_x')
+  # axs[1].set_ylabel('H_y')
+  # axs[2].set_ylabel('H_z')
+  # axs[2].set_xlabel('Time (s)')
+  # axs[0].set_title('Angular Momentum Components Over Time')
+  # for ax in axs:
+  #   ax.legend()
+  #   ax.grid()
+  # plt.tight_layout()
+  # plt.show()
+  
+  # plot unit sphere
+  ax = plt.figure().add_subplot(111, projection='3d')
+  u, v = np.mgrid[0:2*np.pi:20j, 0:np.pi:20j]
+  x = np.cos(u)*np.sin(v)
+  y = np.sin(u)*np.sin(v)
+  z = np.cos(v)
+  ax.plot_surface(x, y, z, color='b', alpha=0.1)
+
+  # plot angular momentum equilibrium points
+  eqs = np.array([[1, 0, 0], [-1, 0, 0], [0, 0, 1], [0, 0, -1]])
+  ax.scatter(eqs[:,0], eqs[:,1], eqs[:,2], color='r', label='Equilibrium Points')
+
+  # # plot normalized angular momentum trajectory
+  # hs_norm = np.linalg.norm(hsb1, axis=1)
+  # hs_unit = hs2 / hs_norm[:, np.newaxis]
+  # ax.scatter(hs_unit[:,0], hs_unit[:,1], hs_unit[:,2], color='g', label='Angular Momentum Trajectory')
+  ax.plot(hsb1[:,0], hsb1[:,1], hsb1[:,2], color='g', label='Trajectory 1')
+  ax.plot(hsb2[:,0], hsb2[:,1], hsb2[:,2], color='orange', label='Trajectory 2')
+  ax.plot(hsb3[:,0], hsb3[:,1], hsb3[:,2], color='purple', label='Trajectory 3')
+  plt.axis('equal')
+  ax.set_xlabel('H_x')
+  ax.set_ylabel('H_y')
+  ax.set_zlabel('H_z')
+  ax.set_title('Angular Momentum Sphere')
+  ax.legend()
+  plt.show()
+
 
 def simulate_orbit():
   N = 1000

@@ -115,4 +115,12 @@ Parameterizing the satellite's attitude with a quaternion, we can use Euler's eq
 Where $\mathbf{q} = [s \ \mathbf{v}]^\top$ is the quaternion representing the satellite's orientation, $\boldsymbol{\omega}$ is the satellite's angular velocity expressed in the body frame, $\mathcal{J}$ is the inertia tensor expressed in the body frame, and $\boldsymbol{\tau}$ is the body frame torque vector.
 
 The attitude dynamics were simulated using a 4th order Runge-Kutta integrator, with an initial angular velocity of 10 rpm about one principal axis plus a small initial perturbation. It was verified that the major and minor rotational axes were stable, while the intermediate axis was unstable.
+
+A plot of the momentum sphere with trajectories from each initial condition can be found in \ref{fig:momentum_sphere}.
+\begin{figure}[H]
+    \centering
+    \includegraphics[width=\textwidth]{momentum_sphere.png}
+    \label{fig:momentum_sphere}
+    \caption{Angular momentum sphere with example trajectories for initial angular velocity along each principal axis.}
+\end{figure}
 \end{document}
