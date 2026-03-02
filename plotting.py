@@ -1,5 +1,6 @@
 import numpy as np
 import matplotlib.pyplot as plt
+from mpl_toolkits.mplot3d.art3d import Poly3DCollection
 
 def plot_rect_prism(com, R, a, b, c):
   # Define the vertices of the rectangular prism
@@ -173,6 +174,119 @@ def animate_orbit_with_velocity(xs, times, earth_radius, history_len=100, vel_sc
         return artists
 
     ani = FuncAnimation(fig, update, frames=len(times), interval=interval, repeat=False)
+    ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
+    plt.show()
+    return ani
+
+def quaternion_to_rot_matrix(q):
+    # q: array-like [w, x, y, z]
+    q = np.asarray(q, dtype=float)
+    if q.shape[0] != 4:
+        raise ValueError('Quaternion must have 4 elements [w,x,y,z]')
+    q = q / np.linalg.norm(q)
+    w, x, y, z = q
+    R = np.array([
+        [1 - 2*(y*y + z*z),     2*(x*y - z*w),     2*(x*z + y*w)],
+        [    2*(x*y + z*w), 1 - 2*(x*x + z*z),     2*(y*z - x*w)],
+        [    2*(x*z - y*w),     2*(y*z + x*w), 1 - 2*(x*x + y*y)]
+    ])
+    return R
+
+def animate_attitude_body(times, states, bodies, r_com, interval=50, face_alpha=0.6):
+    """
+    Animate satellite body rotating according to orientations in `states`.
+
+    - `times`: (N,) array of times
+    - `states`: (N, >=4) array where the first 4 entries are quaternion [w,x,y,z]
+    - `bodies`: list of tuples (a, b, c, m, com) matching conventions in dynamics.py
+    - `r_com`: 3-vector center about which rotation occurs (satellite center of mass)
+    """
+    from matplotlib.animation import FuncAnimation
+
+    quats = np.asarray(states)
+    if quats.ndim != 2 or quats.shape[1] < 4:
+        raise ValueError('states must be shape (N, >=4) with quaternion in first 4 columns')
+    quats = quats[:, 0:4]
+
+    # Precompute unrotated absolute vertices for each body
+    faces_idx = [[0,1,5,4], [1,2,6,5], [2,3,7,6], [3,0,4,7], [0,1,2,3], [4,5,6,7]]
+    body_vertices = []
+    centers = [body[-1] for body in bodies]
+    for i, body in enumerate(bodies):
+        a, b, c = body[0], body[1], body[2]
+        com = np.asarray(body[-1], dtype=float)
+        verts = np.array([[-a/2, -b/2, -c/2],
+                          [ a/2, -b/2, -c/2],
+                          [ a/2,  b/2, -c/2],
+                          [-a/2,  b/2, -c/2],
+                          [-a/2, -b/2,  c/2],
+                          [ a/2, -b/2,  c/2],
+                          [ a/2,  b/2,  c/2],
+                          [-a/2,  b/2,  c/2]]) + com
+        body_vertices.append(verts)
+
+    positions = np.vstack(centers)
+    mins = positions.min(axis=0)
+    maxs = positions.max(axis=0)
+    center_scene = 0.5 * (mins + maxs)
+    span = (maxs - mins).max() * 1.5
+
+    fig = plt.figure()
+    ax = fig.add_subplot(111, projection='3d')
+    ax.set_xlim(center_scene[0] - span/2, center_scene[0] + span/2)
+    ax.set_ylim(center_scene[1] - span/2, center_scene[1] + span/2)
+    ax.set_zlim(center_scene[2] - span/2, center_scene[2] + span/2)
+    ax.set_box_aspect([1,1,1])
+
+    # Artists containers
+    poly_artists = [None] * len(bodies)
+    axis_artists = []
+
+    axis_len = span * 0.3
+
+    def update(frame):
+        q = quats[frame]
+        R = quaternion_to_rot_matrix(q)
+
+        artists = []
+
+        # remove previous polys
+        for i in range(len(poly_artists)):
+            if poly_artists[i] is not None:
+                try:
+                    poly_artists[i].remove()
+                except Exception:
+                    pass
+                poly_artists[i] = None
+
+        # remove previous axis artists
+        for a in axis_artists:
+            try:
+                a.remove()
+            except Exception:
+                pass
+        axis_artists.clear()
+
+        # draw rotated bodies
+        for i, verts in enumerate(body_vertices):
+            rot_verts = (R @ (verts - r_com).T).T + r_com
+            face_verts = [rot_verts[idx] for idx in faces_idx]
+            poly = Poly3DCollection(face_verts, facecolors='orange', edgecolors='k', alpha=face_alpha)
+            ax.add_collection3d(poly)
+            poly_artists[i] = poly
+            artists.append(poly)
+
+        # draw body axes at r_com
+        qx = ax.quiver(r_com[0], r_com[1], r_com[2], R[0,0]*axis_len, R[1,0]*axis_len, R[2,0]*axis_len, color='r', linewidth=1.5)
+        qy = ax.quiver(r_com[0], r_com[1], r_com[2], R[0,1]*axis_len, R[1,1]*axis_len, R[2,1]*axis_len, color='g', linewidth=1.5)
+        qz = ax.quiver(r_com[0], r_com[1], r_com[2], R[0,2]*axis_len, R[1,2]*axis_len, R[2,2]*axis_len, color='b', linewidth=1.5)
+        axis_artists.extend([qx, qy, qz])
+        artists.extend([qx, qy, qz])
+
+        ax.set_title(f"t = {times[frame]:.1f} s")
+        return artists
+
+    ani = FuncAnimation(fig, update, frames=len(times), interval=interval, blit=False, repeat=False)
     ax.set_xlabel('X'); ax.set_ylabel('Y'); ax.set_zlabel('Z')
     plt.show()
     return ani

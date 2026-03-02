@@ -91,6 +91,7 @@ J_total = inertia_in_parallel_axis(J_body, r_body_com, m_body) + \
           inertia_in_parallel_axis(J_panel, r_panel1_com, m_panel) + \
           inertia_in_parallel_axis(J_panel, r_panel2_com, m_panel) + \
           inertia_in_parallel_axis(J_beam, r_beam_com, m_beam)
+print("Total Inertia Tensor:\n", J_total)
 
 # surfaces 
 bodies = [body, panel1, panel2, beam]
@@ -122,6 +123,26 @@ def satellite_dynamics(t, x):
   a = -mu * p / r**3
   return np.concatenate((v, a))
 
+def hat(x):
+  return np.array([[0, -x[2], x[1]],
+                   [x[2], 0, -x[0]],
+                   [-x[1], x[0], 0]])
+
+def attitude_dynamics(t, x):
+  q = x[0:4]  # Quaternion
+  w = x[4:7]  # Angular velocity
+  temp = q[0] * np.eye(3) + hat(q[1:4])
+  L = np.zeros((4, 4));
+  L[0, :] = [q[0], -q[1], -q[2], -q[3]]
+  L[1:,0] = q[1:4]
+  L[1:,1:] = temp
+  H = np.zeros((4,3))
+  H[1:, :] = np.eye(3)
+  qdot = 0.5 * L @ H @ w
+  tau = 0
+  wdot = np.linalg.inv(J_total) @ (tau - hat(w) @ J_total @ w)
+  return np.concatenate((qdot, wdot))
+
 def rk4_step(func, t, x, dt):
   k1 = func(t, x)
   k2 = func(t + dt/2, x + dt/2 * k1)
@@ -129,33 +150,56 @@ def rk4_step(func, t, x, dt):
   k4 = func(t + dt, x + dt * k3)
   return x + (dt/6) * (k1 + 2*k2 + 2*k3 + k4)
 
-N = 1000
-xs = np.zeros((N, 6))
-xs[0] = np.concatenate((p0, v0))
-dt = 10  # time step of 10 seconds
-ts = np.arange(0, N*dt, dt)
-for i, t in enumerate(ts[1:], 1):
-  xs[i] = rk4_step(satellite_dynamics, t, xs[i-1], 10)
+def rk4_step_attitude(func, t, x, dt):
+  xn = rk4_step(func, t, x, dt)
+  xn[0:4] /= np.linalg.norm(xn[0:4]) # normalize quaternion
+  return xn
 
-# animate_orbit(xs, ts, R_earth)
-animate_orbit_with_velocity(xs, ts, R_earth, history_len=600, vel_scale=100, interval=10)
+def simulate_attitude():
+  N = 1000
+  xs = np.zeros((N, 7))
+  q0 = np.array([1, 0, 0, 0])  # initial quaternion (no rotation)
+  rpm = 10
+  w0 = 2*np.pi*rpm/60 * np.array([0, 0, 1]) + np.random.normal(0, 0.05, 3)  # initial angular velocity with some noise
+  print("Initial Angular Velocity (rad/s):", w0)
+  xs[0] = np.concatenate((q0, w0))
+  dt = 0.05
+  ts = np.arange(0, N*dt, dt)
+  for i, t in enumerate(ts[1:], 1):
+    xs[i] = rk4_step_attitude(attitude_dynamics, t, xs[i-1], dt)
+  
+  animate_attitude_body(ts, xs, bodies, r_com, interval=10)
 
-# plotting
-ax = plt.figure().add_subplot(111, projection='3d')
-plot_rect_prism(r_body, np.eye(3), a_body, b_body, c_body)
-plot_rect_prism(r_panel1, np.eye(3), a_panel, b_panel, c_panel)
-plot_rect_prism(r_panel2, np.eye(3), a_panel, b_panel, c_panel)
-plot_rect_prism(r_beam, np.eye(3), a_beam, b_beam, c_beam)
-plot_axes(r_com, np.eye(3))
-plot_axes(r_body, np.eye(3))
-plot_inertia_tensor(J_total, r_com, np.eye(3))
-plot_surface_normals(centroids, normals, areas)
+def simulate_orbit():
+  N = 1000
+  xs = np.zeros((N, 6))
+  xs[0] = np.concatenate((p0, v0))
+  dt = 10  # time step of 10 seconds
+  ts = np.arange(0, N*dt, dt)
+  for i, t in enumerate(ts[1:], 1):
+    xs[i] = rk4_step(satellite_dynamics, t, xs[i-1], 10)
 
+  # animate_orbit(xs, ts, R_earth)
+  animate_orbit_with_velocity(xs, ts, R_earth, history_len=600, vel_scale=100, interval=10)
 
-ax.set_xlabel('X')
-ax.set_ylabel('Y')
-ax.set_zlabel('Z')
-plt.axis('equal')
-ax.set_title('Satellite Components')
-# ax.legend()
-plt.show()
+def plot_body():
+  # plotting
+  ax = plt.figure().add_subplot(111, projection='3d')
+  plot_rect_prism(r_body, np.eye(3), a_body, b_body, c_body)
+  plot_rect_prism(r_panel1, np.eye(3), a_panel, b_panel, c_panel)
+  plot_rect_prism(r_panel2, np.eye(3), a_panel, b_panel, c_panel)
+  plot_rect_prism(r_beam, np.eye(3), a_beam, b_beam, c_beam)
+  plot_axes(r_com, np.eye(3))
+  plot_axes(r_body, np.eye(3))
+  plot_inertia_tensor(J_total, r_com, np.eye(3))
+  plot_surface_normals(centroids, normals, areas)
+  ax.set_xlabel('X')
+  ax.set_ylabel('Y')
+  ax.set_zlabel('Z')
+  plt.axis('equal')
+  ax.set_title('Satellite Components')
+  # ax.legend()
+  plt.show()
+
+if __name__ == "__main__":
+  simulate_attitude()

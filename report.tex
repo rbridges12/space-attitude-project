@@ -5,6 +5,7 @@
 \usepackage{enumitem}
 \usepackage{url}
 \usepackage{hyperref}
+\usepackage{bm}
 \allowdisplaybreaks
 
 \DeclareMathOperator{\EX}{\mathbb{E}}% expected value
@@ -61,6 +62,10 @@ and the following actuators:
 0.1 degree pointing accuracy (totally made up), 6 deg/sec slew rate (possibly made up by google AI)
 
 \section{Spacecraft Model}
+The satellite's body frame is defined with its origin at the center of mass, the x-axis pointing in the direction the solar panels extend, the y-axis pointing along the perpendicular direction within the plane of the main body, and the z axis pointing along the direction that the antenna arrays are facing. This frame was chosen for simplicity while still aligning with the objective of pointing the antennas.
+
+The satellite body was modeled as four rectangular prisms representing the main body, the two solar panels, and the beam connecting the solar panels to the main body. The dimensions of each component were drawn from Starlink filings and official renders. The mass of each component was estimated based on the total mass of the satellite and the relative volumes of each component.
+
 For a uniform rectangular prism, the inertia tensor about its principle axes is defined as:
 \begin{equation*}
   \mathcal{J} = \frac{m}{12}\begin{bmatrix}
@@ -77,274 +82,37 @@ We can determine the satellite's total inertia tensor by modeling the body, sola
 \end{align*}
 The satellite's center of mass can be calculated as the weighted average of the centers of mass of each component.
 
-\section{Dynamics}
+\section{Orbital Dynamics}
+We can derive the satellite's orbital dynamics using Newton's law of gravitation:
+\begin{align*}
+  F_g &= \frac{GMm}{r^2} \\
+  m\ddot{\mathbf{r}} &= -\frac{GMm}{\|\mathbf{r}\|^3} \mathbf{r} \\
+  \mathbf{x} &= \begin{bmatrix} \mathbf{r} \\ \dot{\mathbf{r}} \end{bmatrix} \\
+  \dot{\mathbf{x}} &= \begin{bmatrix} \dot{\mathbf{r}} \\ -\frac{GM}{\|\mathbf{r}\|^3} \mathbf{r} \end{bmatrix}
+\end{align*}
 
-% \begin{enumerate}
-%     \item \begin{enumerate}[label=(\alph*)]
-%         \item test
-%         \begin{equation*}
-%             \rho(x,y,z) = \frac{m}{abc}
-%         \end{equation*}
-%         \begin{align*}
-%             \bar{r} &= \frac{1}{m} \int_V \rho(r)r \,dV \\
-%             &= \frac{1}{m} \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} \frac{m}{abc} \begin{bmatrix}
-%                 x \\ y \\ z
-%             \end{bmatrix} \,dz \,dy \,dx \\
-%             &= \frac{1}{abc} \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} \begin{bmatrix}
-%                 x \\ y \\ z
-%             \end{bmatrix} \,dz \,dy \,dx \\
-%             &= \frac{1}{abc} \begin{bmatrix}
-%                 bc \int_{-\frac{a}{2}}^{\frac{a}{2}} x \,dx \\
-%                 c \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} y \,dy \,dx \\
-%                 \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} z \,dz \,dy \,dx
-%             \end{bmatrix} 
-%             = \frac{1}{abc} \begin{bmatrix}
-%                 bc \frac{x^2}{2} \bigg|_{-\frac{a}{2}}^{\frac{a}{2}} \\
-%                 c \int_{-\frac{a}{2}}^{\frac{a}{2}} y \bigg|_{-\frac{b}{2}}^{\frac{b}{2}} \,dx \\
-%                 \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} z \bigg|_{-\frac{c}{2}}^{\frac{c}{2}} \,dy \,dx
-%             \end{bmatrix} \\
-%             &= \frac{1}{abc} \begin{bmatrix}
-%                 bc(0) \\ c(0) \\ 0
-%             \end{bmatrix} \\
-%             \Aboxed{\bar{r} &= {\begin{bmatrix}
-%                 0 \\ 0 \\ 0
-%             \end{bmatrix}}}
-%         \end{align*}
-%         \begin{align*}
-%             \mathcal{I} &= \begin{bmatrix}
-%                 I_{xx} & I_{xy} & I_{xz} \\
-%                 I_{yx} & I_{yy} & I_{yz} \\
-%                 I_{zx} & I_{zy} & I_{zz}
-%             \end{bmatrix}
-%         \end{align*}
-%         Because the coordinate frame is located at the center of mass and the axes are aligned with the dimensions of the body, all of the off-diagonal elements (products of inertia) our zero.
-%         \begin{align*}
-%             I_{xx} &= \int_V \rho(r)(y^2 + z^2) \,dV \\
-%             &= \frac{m}{abc}\int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} (y^2 + z^2) \,dz \,dy \,dx \\
-%             &= \frac{m}{abc} \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} (y^2z + \frac{z^3}{3}) \bigg|_{-\frac{c}{2}}^{\frac{c}{2}} \,dy \,dx \\
-%             &= \frac{m}{abc} \int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \left(cy^2 + \frac{c^3}{12}\right) \,dy \,dx \\
-%             &= \frac{m}{abc} \int_{-\frac{a}{2}}^{\frac{a}{2}} \left(\frac{cy^3}{3} + \frac{yc^3}{12}\right) \bigg|_{-\frac{b}{2}}^{\frac{b}{2}} \,dx \\
-%             &= \frac{m}{abc} \int_{-\frac{a}{2}}^{\frac{a}{2}} \left(\frac{cb^3}{12} + \frac{bc^3}{12}\right) \,dx \\
-%             &= \frac{m}{abc} \frac{a(cb^3 + bc^3)}{12} = \frac{m}{12}(b^2 + c^2) \\
-%             I_{yy} &= \int_V \rho(r)(x^2 + z^2) \,dV \\
-%             &= \frac{m}{abc}\int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} (x^2 + z^2) \,dz \,dy \,dx \\
-%             &= \frac{m}{12}(a^2 + c^2) \\
-%             I_{zz} &= \int_V \rho(r)(x^2 + y^2) \,dV \\
-%             &= \frac{m}{abc}\int_{-\frac{a}{2}}^{\frac{a}{2}} \int_{-\frac{b}{2}}^{\frac{b}{2}} \int_{-\frac{c}{2}}^{\frac{c}{2}} (x^2 + y^2) \,dz \,dy \,dx \\
-%             &= \frac{m}{12}(a^2 + b^2) \\
-%             \mathcal{I} &= \begin{bmatrix}
-%                 \frac{m}{12}(b^2 + c^2) & 0 & 0 \\
-%                 0 & \frac{m}{12}(a^2 + c^2) & 0 \\
-%                 0 & 0 & \frac{m}{12}(a^2 + b^2)
-%             \end{bmatrix} \\
-%             \Aboxed{\mathcal{I} &= {\begin{bmatrix}
-%                 \frac{0.04}{6} & 0 & 0 \\
-%                 0 & \frac{1}{6} & 0 \\
-%                 0 & 0 & \frac{1.04}{6}
-%             \end{bmatrix}}}
-%         \end{align*}
-%         Because all the links of each robot are identical and have identical coordinate frames defined at their centers, their inertia tensors and centers of mass are identical.
+We can then use our orbit parameters (satellite altitude $h$, earth radius $R_E$, and inclination $\iota$) to compute the satellite's initial state vector:
+\begin{align*}
+  \mathbf{r}_0 &= \begin{bmatrix} R_E + h \\ 0 \\ 0 \end{bmatrix} \\
+  \mathbf{v}_0 &= \begin{bmatrix} 0 \\ \sqrt{\frac{GM}{R_E + h}} \cos\iota \\ \sqrt{\frac{GM}{R_E + h}} \sin\iota \end{bmatrix} \\
+  \mathbf{x}_0 &= \begin{bmatrix} \mathbf{r}_0 \\ \mathbf{v}_0 \end{bmatrix}
+\end{align*}
+This orbit is not fully parameterized but this is enough for a rough recreation of what the satellite's orbit would look like.
 
-%         \item See code
+\section{Attitude Dynamics}
+Parameterizing the satellite's attitude with a quaternion, we can use Euler's equation and quaternion kinematics to derive the satellite's attitude dynamics:
+\begin{align*}
+  \dot{\mathbf{q}} &= \frac{1}{2} L(\mathbf{q}) H \boldsymbol{\omega}, \\ 
+  L(\mathbf{q}) &= \begin{bmatrix}
+    s & -\mathbf{v}^\top \\
+    \mathbf{v} & sI + \mathbf{\hat{v}} \\
+    \end{bmatrix}, \ 
+    H = \begin{bmatrix}
+      0 \\ I
+  \end{bmatrix} \\
+  \dot{\boldsymbol{\omega}} &= \mathcal{J}^{-1} \left( \boldsymbol{\tau} - \boldsymbol{\omega} \times \mathcal{J}\boldsymbol{\omega} \right) \\
+\end{align*}
+Where $\mathbf{q} = [s \ \mathbf{v}]^\top$ is the quaternion representing the satellite's orientation, $\boldsymbol{\omega}$ is the satellite's angular velocity expressed in the body frame, $\mathcal{J}$ is the inertia tensor expressed in the body frame, and $\boldsymbol{\tau}$ is the body frame torque vector.
 
-%         \item \begin{enumerate}
-%             \item 
-%             \begin{align*}
-%                 D(q) &= \begin{bmatrix}
-%                     3.34667 + 2 \cos(q_2) & -0.6733 - \cos(q_2) \\
-%                     -0.6733 - \cos(q_2) & 0.6733
-%                 \end{bmatrix} \\
-%                 C(q, \dot{q}) &= \begin{bmatrix}
-%                     -\sin(q_2) \dot{q}_2 & \sin(q_2)(-\dot{q}_1 + \dot{q}_2) \\
-%                     \sin(q_2) \dot{q}_1 & 0
-%                 \end{bmatrix} \\
-%                 G(q) &= \begin{bmatrix}
-%                     g(\cos(q_1)(3 + \cos(q_2)) + \sin(q_1) \sin(q_2)) \\
-%                     -g \cos(q_1 - q_2)
-%                 \end{bmatrix}
-%             \end{align*}
-%             \begin{figure}[H]
-%                 \centering
-%                 \caption{RR Manipulator}
-%             \end{figure}
-
-%             \item \begin{align*}
-%                 D(q) &= \begin{bmatrix}
-%                     4 & 0 \\
-%                     0 & 2
-%                 \end{bmatrix} \\
-%                 C(q, \dot{q}) &= \begin{bmatrix}
-%                     0 & 0 \\
-%                     0 & 0
-%                 \end{bmatrix} \\
-%                 G(q) &= \begin{bmatrix}
-%                     0 \\ 19.62
-%                 \end{bmatrix}
-%             \end{align*}
-%             \begin{figure}[H]
-%                 \centering
-%                 \caption{PP Manipulator}
-%             \end{figure}
-
-%             \item \begin{align*}
-%                 D(q) &= \begin{bmatrix}
-%                     4 & -\sin(q_2) \\
-%                     -\sin(q_2) & 0.6733
-%                 \end{bmatrix} \\
-%                 C(q, \dot{q}) &= \begin{bmatrix}
-%                     0 & -\cos(q_2) \dot{q}_2 \\
-%                     0 & 0
-%                 \end{bmatrix} \\
-%                 G(q) &= \begin{bmatrix}
-%                     0 \\ g \cos(q_2)
-%                 \end{bmatrix}
-%             \end{align*}
-%             \begin{figure}[H]
-%                 \centering
-%                 \caption{RP Manipulator}
-%             \end{figure}
-            
-
-%             \item \begin{align*}
-%                 D(q) &= \begin{bmatrix}
-%                     2.84667 + 2q_2^2 & 2 \\
-%                     2 & 2
-%                 \end{bmatrix} \\
-%                 C(q, \dot{q}) &= \begin{bmatrix}
-%                     2q_2 \dot{q}_2 & 2q_2 \dot{q}_1 \\
-%                     -2q_2 \dot{q}_1 & 0
-%                 \end{bmatrix} \\
-%                 G(q) &= \begin{bmatrix}
-%                     29.43(\cos(q_1) - 0.666 \sin(q_1) q_2) \\
-%                     19.62 \cos(q_1)
-%                 \end{bmatrix}
-%             \end{align*}
-%         \end{enumerate}
-
-%         \item \begin{enumerate}
-%             \item \begin{align*}
-%                 \dot{D}(q) - 2C(q, \dot{q}) &= \begin{bmatrix}
-%                     0 & \sin(q_2)(2\dot{q}_1 - \dot{q}_2) \\
-%                     -\sin(q_2)(2\dot{q}_1 - \dot{q}_2) & 0
-%                 \end{bmatrix}
-%             \end{align*}
-
-%             \item \begin{align*}
-%                 \dot{D}(q) - 2C(q, \dot{q}) &= \begin{bmatrix}
-%                     0 & 0 \\
-%                     0 & 0
-%                 \end{bmatrix}
-%             \end{align*}
-
-%             \item \begin{align*}
-%                 \dot{D}(q) - 2C(q, \dot{q}) &= \begin{bmatrix}
-%                     0 & \cos(q_2) \dot{q}_2 \\
-%                     -\cos(q_2) \dot{q}_2 & 0
-%                 \end{bmatrix}
-%             \end{align*}
-%         \end{enumerate}
-%             \begin{figure}[H]
-%                 \centering
-%                 \caption{PR Manipulator}
-%             \end{figure}
-%     \end{enumerate}
-
-
-%     \item \begin{align*}
-%         \dot{x}_1 &= x_1 - x_1x_2 \\
-%         \dot{x}_2 &= 2x_1^2 - 2x_2 \\
-%         0 &= x_1 - x_1x_2 \\
-%         0 &= x_1(1 - x_2) \\
-%         x_1 &= 0 \text{ or } x_2 = 1 \\
-%         0 &= 2x_1^2 - 2x_2 \\
-%         x_1 &= 0 \implies x_2 = 0 \\
-%         x_2 &= 1 \implies x_1 = 1
-%     \end{align*}
-%     Therefore we have two equilibrium points, $x_1^* = \begin{bmatrix}
-%         0 \\ 0
-%     \end{bmatrix}$ and $x_2^* = \begin{bmatrix}
-%         1 \\ 1
-%     \end{bmatrix}$. To determine their local stability, we can linearize the system around each equilibrium point and examine the eigenvalues of the resulting matrix:
-%     \begin{align*}
-%         \dot{x} &= f(x) \\
-%         \begin{bmatrix}
-%             \dot{x}_1 \\ \dot{x}_2
-%         \end{bmatrix} &= \begin{bmatrix}
-%             x_1 - x_1x_2 \\ 2x_1^2 - 2x_2
-%         \end{bmatrix} \\
-%         \dot{x} &\approx f(x^*) + \pd{f}{x}\bigg|_{x^*}(x - x^*) \\
-%         \pd{f}{x} &= \begin{bmatrix}
-%             1 - x_2 & -x_1 \\
-%             4x_1 & -2
-%         \end{bmatrix} \\
-%         \pd{f}{x}\bigg|_{x_1^*} &= \begin{bmatrix}
-%             1 & 0 \\
-%             0 & -2
-%         \end{bmatrix} \\
-%         \lambda_1 &= 1, \lambda_2 = -2
-%     \end{align*}
-%     Because one of the eigenvalues has a positive real part, the system is locally unstable at the equilibrium point $x_1^* = \begin{bmatrix}
-%         0 \\ 0
-%     \end{bmatrix}$.
-%     \begin{align*}
-%         \pd{f}{x}\bigg|_{x_2^*} &= \begin{bmatrix}
-%             0 & -1 \\
-%             4 & -2
-%         \end{bmatrix} \\
-%         \lambda_1 &= -1 + \sqrt{3}i, \lambda_2 = -1 - \sqrt{3}i
-%     \end{align*}
-%     Because both eigenvalues have negative real parts, the system is locally exponentially stable at the equilibrium point $x_2^* = \begin{bmatrix}
-%         1 \\ 1
-%     \end{bmatrix}$.
-
-%     \item \begin{align*}
-%         \dot{x}_1 &= -x_1 - x_1x_2^2 \\
-%         \dot{x}_2 &= -x_2 - x_2x_1^2 \\
-%         x_1 &= 0, x_2 = 0 \\
-%         -0 - 0(0)^2 &= 0 \\
-%         -0 - 0(0)^2 &= 0
-%     \end{align*}
-%     Therefore $(0, 0)$ is an equilibrium point. To determine its local stability, we can linearize the system around the equilibrium point and examine the eigenvalues of the resulting matrix:
-%     \begin{align*}
-%         \dot{x} &= f(x) \\
-%         \begin{bmatrix}
-%             \dot{x}_1 \\ \dot{x}_2
-%         \end{bmatrix} &= \begin{bmatrix}
-%             -x_1 - x_1x_2^2 \\ -x_2 - x_2x_1^2
-%         \end{bmatrix} \\
-%         \dot{x} &\approx f(x^*) + \pd{f}{x}\bigg|_{x^*}(x - x^*) \\
-%         \pd{f}{x} &= \begin{bmatrix}
-%             -1 - x_2^2 & -2x_1x_2 \\
-%             -2x_1x_2 & -1 - x_1^2
-%         \end{bmatrix} \\
-%         \pd{f}{x}\bigg|_{x^*} &= \begin{bmatrix}
-%             -1 & 0 \\
-%             0 & -1
-%         \end{bmatrix} \\
-%         \lambda_1 &= -1, \lambda_2 = -1
-%     \end{align*}
-%     Because both eigenvalues have negative real parts, the system is locally exponentially stable at the equilibrium point $(0, 0)$.
-
-%     \begin{align*}
-%         V &= \frac{1}{2}x_1^2 + \frac{1}{2}x_2^2 \\
-%         &= \frac{1}{2} \begin{bmatrix}
-%             x_1 & x_2
-%         \end{bmatrix} \begin{bmatrix}
-%             x_1 \\ x_2
-%         \end{bmatrix} = \frac{1}{2}x^\top I x \\
-%         I > 0 &\implies V > 0 \text{ for all } x \neq 0 \\
-%     \end{align*}
-%     Therefore $V$ is a positive definite function.
-%     \begin{align*}
-%         \dot{V} &= \pd{V}{x}\dot{x} \\
-%         &= x_1 \dot{x}_1 + x_2 \dot{x}_2 \\
-%         &= x_1(-x_1 - x_1x_2^2) + x_2(-x_2 - x_2x_1^2) \\
-%         &= -x_1^2 - x_1^2x_2^2 - x_2^2 - x_2^2x_1^2 \\
-%         &= -(x_1^2 + x_2^2 + 2x_1^2x_2^2) \\
-%         x_1, x_2 &\neq 0 \implies x_1^2 + x_2^2 + 2x_1^2x_2^2 > 0 \\
-%         &\implies \dot{V} < 0 \text{ for all } x \neq 0
-%     \end{align*}
-%     Therefore $\dot{V}$ is a negative definite function. Because $V$ is a positive definite function and $\dot{V}$ is a negative definite function, the system is globally asymptotically stable at the equilibrium point $(0, 0)$.
-% \end{enumerate}
-
+The attitude dynamics were simulated using a 4th order Runge-Kutta integrator, with an initial angular velocity of 10 rpm about one principal axis plus a small initial perturbation. It was verified that the major and minor rotational axes were stable, while the intermediate axis was unstable.
 \end{document}
